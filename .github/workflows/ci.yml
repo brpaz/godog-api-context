@@ -51,7 +51,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     name: Tag Release
     runs-on: ubuntu-latest
-    needs: [lint, build, test]
+    needs: [test]
     steps:
       - uses: actions/checkout@master
       - uses: actions/setup-node@v1

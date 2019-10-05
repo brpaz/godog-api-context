@@ -17,9 +17,6 @@ lint: ## Lint code
 vet: ## Run go vet
 	@go vet ./...
 
-build: ## Build the app
-	@go build -o build/app main.go
-
 test: ## Run package unit testsS
 	@go test -v -race -short  ./...
 

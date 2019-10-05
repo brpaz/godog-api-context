@@ -250,7 +250,7 @@ func (ctx *ApiContext) TheResponseShouldMatchJson(body *gherkin.DocString) error
 
 	expected := body.Content
 
-	match, err := IsEqualJson(actual, expected)
+	match, err := isEqualJson(actual, expected)
 	if err != nil {
 		return err
 	}

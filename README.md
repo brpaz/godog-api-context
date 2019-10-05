@@ -54,27 +54,31 @@ func TestMain(m *testing.M) {
 
 ## Available step definitions
 
-`^I send "([^"]*)" request to "([^"]*)"$`
-
-`^The response code should be (\d+)$`
-
-`^The response should match json:$`
-
-`^I set header "([^"]*)" with value "([^"]*)"$`
-
-`^The response should match json schema "([^"]*)"$`
-
-`^I send "([^"]*)" request to "([^"]*)" with body:$`
-
-`^The response should be a valid json$`
-
 `^I set query param "([^"]*)" with value "([^"]*)"$`
-
-`^I set headers to:$`
 
 `^I set query params to:$`
 
-More to come.
+`^I set header "([^"]*)" with value "([^"]*)"$`
+
+`^I set headers to:$`
+
+`^I send "([^"]*)" request to "([^"]*)"$`
+
+`^I send "([^"]*)" request to "([^"]*)" with body:$`
+
+`^The response code should be (\d+)$`
+
+`^The response should be a valid json$`
+
+`^The response should match json:$`
+
+`^The response should match json schema "([^"]*)"$`
+
+## TODO
+
+* Add steps for setting Cookies
+* Fix Json path step
+* Add step to assert response headers
 
 
 ## 🤝 Contributing

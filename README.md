@@ -8,31 +8,73 @@
 [![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg?style=for-the-badge)](https://github.com/semantic-release/semantic-release?style=for-the-badge)
 [![Actions Status](https://github.com/brpaz/godog-api-context/workflows/CI/badge.svg?style=for-the-badge)](https://github.com/brpaz/godog-api-context/actions)
 
-## What is included
+## Pre-requisites
 
-This package includes common step definitions for testing rest APIs.
-
-The following steps are included:
-
-`^I send "([^"]*)" request to "([^"]*)"$`
-`^The response code should be (\d+)$`
-`^The response should match json:$`
-`^I set header "([^"]*)" with value "([^"]*)"$`
-`^The json path "([^"]*)" should have value "([^"]*)"$`
-`^The response should match json schema "([^"]*)"$`
-`^I send "([^"]*)" request to "([^"]*)" with body:$`
-`^The response should be a valid json$`
-`^I set query param "([^"]*)" with value "([^"]*)"$`
-`^I set headers to:$`
-`^I set query params to:$`
+* [godog](https://github.com/DATA-DOG/godog)
 
 ## Usage
 
+```go
+package main
 
+import (
+	"flag"
+	apiContext "github.com/brpaz/godog-api-context"
+	"os"
+	"testing"
 
-## TODO
+	"github.com/DATA-DOG/godog"
+)
 
-* Add more steps like set cookie.
+var opt = godog.Options{
+	Output: os.Stdout,
+	Format: "progress", // can define default values,
+	Strict: false,
+}
+
+func init() {
+	godog.BindFlags("godog.", flag.CommandLine, &opt)
+}
+
+func TestMain(m *testing.M) {
+	flag.Parse()
+
+	opt.Paths = flag.Args()
+
+	status := godog.RunWithOptions("godogs", func(s *godog.Suite) {
+		apiContext.NewAPIContext(s, os.Getenv("APP_BASE_URL"))
+	}, opt)
+
+	if st := m.Run(); st > status {
+		status = st
+	}
+	os.Exit(status)
+}
+```
+
+## Available step definitions
+
+`^I send "([^"]*)" request to "([^"]*)"$`
+
+`^The response code should be (\d+)$`
+
+`^The response should match json:$`
+
+`^I set header "([^"]*)" with value "([^"]*)"$`
+
+`^The response should match json schema "([^"]*)"$`
+
+`^I send "([^"]*)" request to "([^"]*)" with body:$`
+
+`^The response should be a valid json$`
+
+`^I set query param "([^"]*)" with value "([^"]*)"$`
+
+`^I set headers to:$`
+
+`^I set query params to:$`
+
+More to come.
 
 
 ## 🤝 Contributing

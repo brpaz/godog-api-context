@@ -44,6 +44,7 @@ jobs:
       - name: Upload Coverage report to Codacy
         uses: brpaz/godacov-action@master
         with:
+          reportPath: cover.out
           codacyToken: ${{ secrets.CODACY_TOKEN }}
           commitId: ${{ github.sha }}
 

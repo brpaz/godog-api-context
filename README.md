@@ -9,7 +9,7 @@
 
 [![Actions Status](https://github.com/brpaz/godog-api-context/workflows/CI/badge.svg?style=for-the-badge)](https://github.com/brpaz/godog-api-context/actions)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/eb4a7671aecd4d758a020aa6fa5942e1)](https://www.codacy.com/manual/brpaz/godog-api-context?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=brpaz/godog-api-context&amp;utm_campaign=Badge_Grade)
-[![Code Coverage](https://api.codacy.com/project/badge/Grade/eb4a7671aecd4d758a020aa6fa5942e1)](https://www.codacy.com/manual/brpaz/godog-api-context?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=brpaz/godog-api-context&amp;utm_campaign=Badge_Grade)
+[![Codacy Coverage](https://api.codacy.com/project/badge/Coverage/eb4a7671aecd4d758a020aa6fa5942e1)](https://www.codacy.com/manual/brpaz/godog-api-context?utm_source=github.com&utm_medium=referral&utm_content=brpaz/godog-api-context&utm_campaign=Badge_Coverage)
 
 ## Pre-requisites
 

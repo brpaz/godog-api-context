@@ -3,8 +3,10 @@ package context
 import (
 	"encoding/json"
 	"github.com/DATA-DOG/godog/gherkin"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
 	"github.com/DATA-DOG/godog"
@@ -201,28 +203,29 @@ func TestApiContext_TheResponseShouldMatchJsonSchema(t *testing.T) {
 	assert.NotNil(t, ctx.TheResponseShouldMatchJsonSchema("coordinates.json"))
 }
 
-//func TestJsonPathMatchers(t *testing.T) {
-//
-//	/*f, err := ioutil.ReadFile(filepath.Join("testdata","test_json_path.json"))
-//
-//	if err != nil {
-//		t.Error(err)
-//	}*/
-//
-//	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-//		w.Header().Set("Content-Type", "application/json")
-//		json.NewEncoder(w).Encode("{\"a\": \"a\"}")
-//	}))
-//
-//	defer ts.Close()
-//	s := &godog.Suite{}
-//
-//	ctx := NewAPIContext(s, ts.URL)
-//
-//	ctx.ISendRequestTo("GET", "/")
-//
-//	assert.NotNil(t, ctx.lastResponse)
-//	assert.Nil(t, ctx.TheJsonPathShouldHaveValue("$.a", "a"))
-//	assert.Nil(t, ctx.TheJsonPathShouldHaveValue("$.b", 1))
-//	assert.Nil(t, ctx.TheJsonPathShouldHaveValue("$.c", 3.50))
-//}
+func TestJsonPathMatchers(t *testing.T) {
+
+	f, err := ioutil.ReadFile(filepath.Join("testdata", "test_json_path.json"))
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(f)
+	}))
+
+	defer ts.Close()
+	s := &godog.Suite{}
+
+	ctx := NewAPIContext(s, ts.URL)
+
+	ctx.ISendRequestTo("GET", "/")
+
+	assert.NotNil(t, ctx.lastResponse)
+	assert.Nil(t, ctx.TheJsonPathShouldHaveValue("$.a", "a"))
+	assert.Nil(t, ctx.TheJsonPathShouldHaveValue("$.b", 2.0))
+	assert.Nil(t, ctx.TheJsonPathShouldHaveValue("$.c", 3.5))
+	assert.Nil(t, ctx.TheJsonPathShouldHaveValue("$.d", true))
+}

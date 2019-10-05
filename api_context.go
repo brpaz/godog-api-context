@@ -14,6 +14,7 @@ import (
 
 	"github.com/DATA-DOG/godog"
 	"github.com/DATA-DOG/godog/gherkin"
+	"github.com/PaesslerAG/jsonpath"
 	"github.com/xeipuuv/gojsonschema"
 )
 
@@ -98,7 +99,7 @@ func (ctx *ApiContext) registerSteps(s *godog.Suite) {
 	s.Step(`^The response should match json:$`, ctx.TheResponseShouldMatchJson)
 	s.Step(`^The response header "([^"]*)" should have value ([^"]*)$`, ctx.TheResponseHeaderShouldHaveValue)
 	s.Step(`^The response should match json schema "([^"]*)"$`, ctx.TheResponseShouldMatchJsonSchema)
-	//s.Step(`^The json path "([^"]*)" should have value "([^"]*)"$`, ctx.TheJsonPathShouldHaveValue)
+	s.Step(`^The json path "([^"]*)" should have value "([^"]*)"$`, ctx.TheJsonPathShouldHaveValue)
 }
 
 // resetContext Reset the internal state of the API context
@@ -261,24 +262,25 @@ func (ctx *ApiContext) TheResponseShouldBeAValidJSON() error {
 }
 
 // TheJsonPathShouldHaveValue Validates if the json object have the expected value at the specified path.
-// TODO this method is not working well.
-//func (ctx *ApiContext) TheJsonPathShouldHaveValue(path string, value interface{}) error {
-//	var jsonData interface{}
-//
-//	json.Unmarshal([]byte(ctx.lastResponse.Body), &jsonData)
-//
-//	res, err := jsonpath.JsonPathLookup(jsonData, path)
-//
-//	if err != nil {
-//		return err
-//	}
-//
-//	if res != value {
-//		return fmt.Errorf("expected json %v, does not match actual: %v", res, value)
-//	}
-//
-//	return nil
-//}
+func (ctx *ApiContext) TheJsonPathShouldHaveValue(path string, value interface{}) error {
+	var jsonData map[string]interface{}
+
+	if err := json.Unmarshal([]byte(ctx.lastResponse.Body), &jsonData); err != nil {
+		return err
+	}
+
+	res, err := jsonpath.Get(path, jsonData)
+
+	if err != nil {
+		return err
+	}
+
+	if res != value {
+		return fmt.Errorf("expected json %v, does not match actual: %v", res, value)
+	}
+
+	return nil
+}
 
 // TheResponseShouldMatchJson Check that response matches the expected JSON.
 func (ctx *ApiContext) TheResponseShouldMatchJson(body *gherkin.DocString) error {

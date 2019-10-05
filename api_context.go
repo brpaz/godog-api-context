@@ -1,9 +1,9 @@
+// Package context defines common godog step definitions for testing REST APIs
 package context
 
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -17,6 +17,10 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 )
 
+// DefaultSchemasPath The defaults path to json schema files for validating the responses
+const DefaultSchemasPath = "schemas"
+
+// ApiContext The main struct
 type ApiContext struct {
 	BaseURL         string
 	JSONSchemasPath string
@@ -28,13 +32,24 @@ type ApiContext struct {
 	lastRequest     *http.Request
 }
 
+// ApiResponse Struct that wraps an API response.
+// It contains common accessed fields like Status Code and the Payload as well as access to the raw http.Response object
 type ApiResponse struct {
 	StatusCode  int
 	Body        string
 	ResponseObj *http.Response
 }
 
-// NewAPIContext Creates a new API context for testing
+// ContextOptions This structure allows to pass configuration options to a new ApiContext instance
+type ContextOptions struct {
+	BaseURL         string
+	Debug           bool
+	JSONSchemasPath string
+}
+
+// NewAPIContext Creates a new API context, configuring with a specific base url.
+// This method initializes the API context struct  and registers all the provided steps into the specified
+// godog suite.
 func NewAPIContext(s *godog.Suite, baseURL string) *ApiContext {
 	ctx := &ApiContext{
 		BaseURL:         baseURL,
@@ -42,7 +57,25 @@ func NewAPIContext(s *godog.Suite, baseURL string) *ApiContext {
 		headers:         make(map[string]string, 0),
 		queryParams:     make(map[string]string, 0),
 		Debug:           false,
-		JSONSchemasPath: "schemas",
+		JSONSchemasPath: DefaultSchemasPath,
+	}
+
+	ctx.registerSteps(s)
+
+	return ctx
+}
+
+// NewAPIContext Creates a new API context, configuring with a specific base url.
+// This method initializes the API context struct  and registers all the provided steps into the specified
+// godog suite.
+func NewAPIContextWithOptions(s *godog.Suite, opts *ContextOptions) *ApiContext {
+	ctx := &ApiContext{
+		BaseURL:         opts.BaseURL,
+		client:          &http.Client{},
+		headers:         make(map[string]string, 0),
+		queryParams:     make(map[string]string, 0),
+		Debug:           opts.Debug,
+		JSONSchemasPath: opts.JSONSchemasPath,
 	}
 
 	ctx.registerSteps(s)
@@ -52,29 +85,32 @@ func NewAPIContext(s *godog.Suite, baseURL string) *ApiContext {
 
 // Register steps into the suite
 func (ctx *ApiContext) registerSteps(s *godog.Suite) {
-	s.BeforeScenario(ctx.ResetContext)
+	s.BeforeScenario(ctx.resetContext)
 
-	s.Step(`^I send "([^"]*)" request to "([^"]*)"$`, ctx.ISendRequestTo)
-	s.Step(`^The response code should be (\d+)$`, ctx.TheResponseCodeShouldBe)
-	s.Step(`^The response should match json:$`, ctx.TheResponseShouldMatchJson)
 	s.Step(`^I set header "([^"]*)" with value "([^"]*)"$`, ctx.ISetHeaderWithValue)
-	//s.Step(`^The json path "([^"]*)" should have value "([^"]*)"$`, ctx.TheJsonPathShouldHaveValue)
-	s.Step(`^The response should match json schema "([^"]*)"$`, ctx.TheResponseShouldMatchJsonSchema)
-	s.Step(`^I send "([^"]*)" request to "([^"]*)" with body:$`, ctx.ISendRequestToWithBody)
-	s.Step(`^The response should be a valid json$`, ctx.TheResponseShouldBeAValidJson)
-	s.Step(`^I set query param "([^"]*)" with value "([^"]*)"$`, ctx.ISetQueryParamWithValue)
 	s.Step(`^I set headers to:$`, ctx.ISetHeadersTo)
+	s.Step(`^I send "([^"]*)" request to "([^"]*)" with body:$`, ctx.ISendRequestToWithBody)
+	s.Step(`^I send "([^"]*)" request to "([^"]*)"$`, ctx.ISendRequestTo)
+	s.Step(`^I set query param "([^"]*)" with value "([^"]*)"$`, ctx.ISetQueryParamWithValue)
 	s.Step(`^I set query params to:$`, ctx.ISetQueryParamsTo)
+	s.Step(`^The response code should be (\d+)$`, ctx.TheResponseCodeShouldBe)
+	s.Step(`^The response should be a valid json$`, ctx.TheResponseShouldBeAValidJSON)
+	s.Step(`^The response should match json:$`, ctx.TheResponseShouldMatchJson)
+	s.Step(`^The response header "([^"]*)" should have value ([^"]*)$`, ctx.TheResponseHeaderShouldHaveValue)
+	s.Step(`^The response should match json schema "([^"]*)"$`, ctx.TheResponseShouldMatchJsonSchema)
+	//s.Step(`^The json path "([^"]*)" should have value "([^"]*)"$`, ctx.TheJsonPathShouldHaveValue)
 }
 
-// ResetContexts Reset the internal stored context data
-func (ctx *ApiContext) ResetContext(interface{}) {
+// resetContext Reset the internal state of the API context
+func (ctx *ApiContext) resetContext(interface{}) {
 	ctx.headers = make(map[string]string, 0)
 	ctx.queryParams = make(map[string]string, 0)
 	ctx.lastResponse = nil
+	ctx.lastRequest = nil
 }
 
-// ISetHeadersTo Set headers from a Data Table
+// ISetHeadersTo This step sets the request headers using a datatable as source.
+// It allows to define multiple headers at the same time.
 func (ctx *ApiContext) ISetHeadersTo(data *gherkin.DataTable) error {
 	for i := 0; i < len(data.Rows); i++ {
 		ctx.headers[data.Rows[i].Cells[0].Value] = data.Rows[i].Cells[1].Value
@@ -215,7 +251,7 @@ func (ctx *ApiContext) TheResponseCodeShouldBe(code int) error {
 }
 
 // TheResponseShouldBeAValidJson checks if the response is a valid JSON.
-func (ctx *ApiContext) TheResponseShouldBeAValidJson() error {
+func (ctx *ApiContext) TheResponseShouldBeAValidJSON() error {
 	var data interface{}
 	if err := json.Unmarshal([]byte(ctx.lastResponse.Body), &data); err != nil {
 		return err
@@ -260,7 +296,7 @@ func (ctx *ApiContext) TheResponseShouldMatchJson(body *gherkin.DocString) error
 	return nil
 }
 
-// TheResponseShouldMatchJsonSchema Checks if the response matches the specified JSON schemctx.
+// TheResponseShouldMatchJsonSchema Checks if the response matches the specified JSON schema
 func (ctx *ApiContext) TheResponseShouldMatchJsonSchema(path string) error {
 
 	path = strings.Trim(path, "/")
@@ -273,7 +309,7 @@ func (ctx *ApiContext) TheResponseShouldMatchJsonSchema(path string) error {
 
 	schemaContents, err := ioutil.ReadFile(schemaPath)
 	if err != nil {
-		return fmt.Errorf("Cannot open json schema file: %s", err)
+		return fmt.Errorf("cannot open json schema file: %s", err)
 	}
 
 	schemaLoader := gojsonschema.NewStringLoader(string(schemaContents))
@@ -285,12 +321,23 @@ func (ctx *ApiContext) TheResponseShouldMatchJsonSchema(path string) error {
 	}
 
 	if !result.Valid() {
-		fmt.Printf("The document is not valid according to the specified schema %s:", path)
-		for _, desc := range result.Errors() {
-			fmt.Printf("- %s\n", desc)
+		var schemaErrors []string
+		for _, error := range result.Errors() {
+			schemaErrors = append(schemaErrors, error.String())
 		}
 
-		return errors.New("The document is not valid according to the specified schema")
+		return fmt.Errorf("The document is not valid according to the specified schema %s\n %v", path, schemaErrors)
+	}
+
+	return nil
+}
+
+// TheResponseHeaderShouldHaveValue Verify the value of a response header
+func (ctx *ApiContext) TheResponseHeaderShouldHaveValue(name string, expectedValue string) error {
+	actualValue := ctx.lastResponse.ResponseObj.Header.Get(name)
+
+	if actualValue != expectedValue {
+		return fmt.Errorf("expected header to have value %s. actual : %s", expectedValue, actualValue)
 	}
 
 	return nil

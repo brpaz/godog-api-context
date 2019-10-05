@@ -152,6 +152,9 @@ func TestApiContext_ISendRequestTo(t *testing.T) {
 
 	ctx := NewAPIContext(s, ts.URL)
 
+	ctx.ISetQueryParamWithValue("page", "1")
+	ctx.ISetHeaderWithValue("Content-Type", "application/json")
+
 	ctx.ISendRequestTo("GET", "/")
 
 	assert.NotNil(t, ctx.lastResponse)
@@ -161,6 +164,37 @@ func TestApiContext_ISendRequestTo(t *testing.T) {
 	assert.Nil(t, ctx.TheResponseShouldMatchJson(&gherkin.DocString{
 		Content: "{\"result\": \"success\"}",
 	}))
+}
+
+func TestApiContext_ISendRequestToWithBody(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		p := make(map[string]string, 0)
+		p["result"] = "success"
+		json.NewEncoder(w).Encode(p)
+	}))
+
+	defer ts.Close()
+	s := &godog.Suite{}
+
+	ctx := NewAPIContext(s, ts.URL)
+
+	ctx.ISetQueryParamWithValue("page", "1")
+	ctx.ISetHeaderWithValue("Content-Type", "application/json")
+
+	reqBody := "{ \"name\": \"Bruno\"}"
+	ctx.ISendRequestToWithBody("POST", "/", &gherkin.DocString{
+		Node:    gherkin.Node{},
+		Content: reqBody,
+	})
+
+	assert.NotNil(t, ctx.lastResponse)
+	assert.Equal(t, 200, ctx.lastResponse.StatusCode)
+	assert.Equal(t, "POST", ctx.lastRequest.Method)
+
+	// TODO fix this test
+	//body, _ := ioutil.ReadAll(ctx.lastRequest.Body)
+	//assert.Equal(t, reqBody, string(body))
 }
 
 func TestVerifyResponseHeaderValue(t *testing.T) {

@@ -66,7 +66,7 @@ func NewAPIContext(s *godog.Suite, baseURL string) *ApiContext {
 	return ctx
 }
 
-// NewAPIContext Creates a new API context, configuring with a specific base url.
+// NewAPIContextWithOptions Creates a new API context, configuring with a specific base url.
 // This method initializes the API context struct  and registers all the provided steps into the specified
 // godog suite.
 func NewAPIContextWithOptions(s *godog.Suite, opts *ContextOptions) *ApiContext {
@@ -165,6 +165,7 @@ func (ctx *ApiContext) ISendRequestTo(method, uri string) error {
 		log.Printf("New Request:\n%q", requestDump)
 	}
 
+	ctx.lastRequest = req
 	resp, err := ctx.client.Do(req)
 
 	if err != nil {
@@ -181,8 +182,6 @@ func (ctx *ApiContext) ISendRequestTo(method, uri string) error {
 	if err2 != nil {
 		return err2
 	}
-
-	ctx.lastRequest = req
 
 	ctx.lastResponse = &ApiResponse{
 		StatusCode:  resp.StatusCode,
@@ -210,10 +209,11 @@ func (ctx *ApiContext) ISendRequestToWithBody(method, uri string, requestBody *g
 	}
 
 	if ctx.Debug {
-		requestDump, _ := httputil.DumpRequestOut(req, false)
+		requestDump, _ := httputil.DumpRequestOut(req, true)
 		log.Printf("New Request:\n%q", requestDump)
 	}
 
+	ctx.lastRequest = req
 	resp, err := ctx.client.Do(req)
 
 	if err != nil {

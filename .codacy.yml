@@ -6,3 +6,6 @@ engines:
 exclude_paths:
   - 'vendor/**'
   - 'testdata/**/*'
+  - 'README.md'
+  - 'CHANGELOG.md'
+  - 'LICENSE'

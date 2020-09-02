@@ -1,3 +1,15 @@
+# [1.3.0](https://github.com/brpaz/godog-api-context/compare/v1.2.0...v1.3.0) (2020-09-02)
+
+
+### Bug Fixes
+
+* small improvements ([a28b2ff](https://github.com/brpaz/godog-api-context/commit/a28b2ff557765b18215982f6e240b5479a93460e))
+
+
+### Features
+
+* make it work with latest godog v0.10 ([#1](https://github.com/brpaz/godog-api-context/issues/1)) ([df88f48](https://github.com/brpaz/godog-api-context/commit/df88f48d739453ef1fd000cd7070dd641c617793))
+
 # Changelog
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.

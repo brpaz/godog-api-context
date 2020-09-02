@@ -1,5 +1,5 @@
-// Package context defines common godog step definitions for testing REST APIs
-package context
+// Package apicontext defines common godog step definitions for testing REST APIs
+package apicontext
 
 import (
 	"bytes"
@@ -12,20 +12,20 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DATA-DOG/godog"
-	"github.com/DATA-DOG/godog/gherkin"
 	"github.com/PaesslerAG/jsonpath"
+	"github.com/cucumber/gherkin-go"
+	"github.com/cucumber/godog"
 	"github.com/xeipuuv/gojsonschema"
 )
 
 // DefaultSchemasPath The defaults path to json schema files for validating the responses
-const DefaultSchemasPath = "schemas"
+const defaultSchemasPath = "schemas"
 
 // ApiContext The main struct
 type ApiContext struct {
-	BaseURL         string
-	JSONSchemasPath string
-	Debug           bool
+	baseURL         string
+	jSONSchemasPath string
+	debug           bool
 	client          *http.Client
 	headers         map[string]string
 	queryParams     map[string]string
@@ -41,52 +41,41 @@ type ApiResponse struct {
 	ResponseObj *http.Response
 }
 
-// ContextOptions This structure allows to pass configuration options to a new ApiContext instance
-type ContextOptions struct {
-	BaseURL         string
-	Debug           bool
-	JSONSchemasPath string
+// New Creates a new instance of the API Context
+func New(baseURL string) *ApiContext {
+	return &ApiContext{
+		baseURL:         baseURL,
+		client:          &http.Client{},
+		headers:         map[string]string{},
+		queryParams:     map[string]string{},
+		debug:           false,
+		jSONSchemasPath: defaultSchemasPath,
+	}
 }
 
-// NewAPIContext Creates a new API context, configuring with a specific base url.
-// This method initializes the API context struct  and registers all the provided steps into the specified
-// godog suite.
-func NewAPIContext(s *godog.Suite, baseURL string) *ApiContext {
-	ctx := &ApiContext{
-		BaseURL:         baseURL,
-		client:          &http.Client{},
-		headers:         make(map[string]string, 0),
-		queryParams:     make(map[string]string, 0),
-		Debug:           false,
-		JSONSchemasPath: DefaultSchemasPath,
-	}
-
-	ctx.registerSteps(s)
+// WithBaseURL Configures context base URL
+func (ctx *ApiContext) WithBaseURL(url string) *ApiContext {
+	ctx.baseURL = url
 
 	return ctx
 }
 
-// NewAPIContextWithOptions Creates a new API context, configuring with a specific base url.
-// This method initializes the API context struct  and registers all the provided steps into the specified
-// godog suite.
-func NewAPIContextWithOptions(s *godog.Suite, opts *ContextOptions) *ApiContext {
-	ctx := &ApiContext{
-		BaseURL:         opts.BaseURL,
-		client:          &http.Client{},
-		headers:         make(map[string]string, 0),
-		queryParams:     make(map[string]string, 0),
-		Debug:           opts.Debug,
-		JSONSchemasPath: opts.JSONSchemasPath,
-	}
-
-	ctx.registerSteps(s)
+// WithDebug Configures debug mode
+func (ctx *ApiContext) WithDebug(debug bool) *ApiContext {
+	ctx.debug = debug
 
 	return ctx
 }
 
-// Register steps into the suite
-func (ctx *ApiContext) registerSteps(s *godog.Suite) {
-	s.BeforeScenario(ctx.resetContext)
+// WithJSONSchemasPath Specifies the path to JSON schema files for doing response validation
+func (ctx *ApiContext) WithJSONSchemasPath(path string) *ApiContext {
+	ctx.jSONSchemasPath = path
+	return ctx
+}
+
+// InitializeScenario this function should be called when starting the Test suite, to register the available steps.
+func (ctx *ApiContext) InitializeScenario(s *godog.ScenarioContext) {
+	s.BeforeScenario(ctx.reset)
 
 	s.Step(`^I set header "([^"]*)" with value "([^"]*)"$`, ctx.ISetHeaderWithValue)
 	s.Step(`^I set headers to:$`, ctx.ISetHeadersTo)
@@ -96,16 +85,16 @@ func (ctx *ApiContext) registerSteps(s *godog.Suite) {
 	s.Step(`^I set query params to:$`, ctx.ISetQueryParamsTo)
 	s.Step(`^The response code should be (\d+)$`, ctx.TheResponseCodeShouldBe)
 	s.Step(`^The response should be a valid json$`, ctx.TheResponseShouldBeAValidJSON)
-	s.Step(`^The response should match json:$`, ctx.TheResponseShouldMatchJson)
+	s.Step(`^The response should match json:$`, ctx.TheResponseShouldMatchJSON)
 	s.Step(`^The response header "([^"]*)" should have value ([^"]*)$`, ctx.TheResponseHeaderShouldHaveValue)
 	s.Step(`^The response should match json schema "([^"]*)"$`, ctx.TheResponseShouldMatchJsonSchema)
-	s.Step(`^The json path "([^"]*)" should have value "([^"]*)"$`, ctx.TheJsonPathShouldHaveValue)
+	s.Step(`^The json path "([^"]*)" should have value "([^"]*)"$`, ctx.TheJSONPathShouldHaveValue)
 }
 
-// resetContext Reset the internal state of the API context
-func (ctx *ApiContext) resetContext(interface{}) {
-	ctx.headers = make(map[string]string, 0)
-	ctx.queryParams = make(map[string]string, 0)
+// reset Reset the internal state of the API context
+func (ctx *ApiContext) reset(*godog.Scenario) {
+	ctx.headers = make(map[string]string)
+	ctx.queryParams = make(map[string]string)
 	ctx.lastResponse = nil
 	ctx.lastRequest = nil
 }
@@ -120,7 +109,7 @@ func (ctx *ApiContext) ISetHeadersTo(data *gherkin.DataTable) error {
 	return nil
 }
 
-// IAddHeaderWithValue Step that add a new header to the current request.
+// ISetHeaderWithValue Step that add a new header to the current request.
 func (ctx *ApiContext) ISetHeaderWithValue(name string, value string) error {
 	ctx.headers[name] = value
 	return nil
@@ -143,9 +132,13 @@ func (ctx *ApiContext) ISetQueryParamsTo(data *gherkin.DataTable) error {
 
 // ISendRequestTo Sends a request to the specified endpoint using the specified method.
 func (ctx *ApiContext) ISendRequestTo(method, uri string) error {
-	reqURL := fmt.Sprintf("%s%s", ctx.BaseURL, uri)
+	reqURL := fmt.Sprintf("%s%s", ctx.baseURL, uri)
 
-	req, _ := http.NewRequest(method, reqURL, nil)
+	req, err := http.NewRequest(method, reqURL, nil)
+
+	if err != nil {
+		return err
+	}
 
 	// Add headers to request
 	for name, value := range ctx.headers {
@@ -160,10 +153,7 @@ func (ctx *ApiContext) ISendRequestTo(method, uri string) error {
 
 	req.URL.RawQuery = q.Encode()
 
-	if ctx.Debug {
-		requestDump, _ := httputil.DumpRequestOut(req, true)
-		log.Printf("New Request:\n%q", requestDump)
-	}
+	ctx.logRequest(req)
 
 	ctx.lastRequest = req
 	resp, err := ctx.client.Do(req)
@@ -172,10 +162,7 @@ func (ctx *ApiContext) ISendRequestTo(method, uri string) error {
 		return err
 	}
 
-	if ctx.Debug {
-		dump, _ := httputil.DumpResponse(resp, true)
-		log.Printf("Received response:\n%q", dump)
-	}
+	ctx.logResponse(resp)
 
 	body, err2 := ioutil.ReadAll(resp.Body)
 
@@ -193,9 +180,9 @@ func (ctx *ApiContext) ISendRequestTo(method, uri string) error {
 }
 
 // ISendRequestToWithBody Send a request with json body. Ex: a POST request.
-func (ctx *ApiContext) ISendRequestToWithBody(method, uri string, requestBody *gherkin.DocString) error {
+func (ctx *ApiContext) ISendRequestToWithBody(method, uri string, requestBody *godog.DocString) error {
 
-	reqURL := fmt.Sprintf("%s%s", ctx.BaseURL, uri)
+	reqURL := fmt.Sprintf("%s%s", ctx.baseURL, uri)
 
 	var jsonStr = []byte(requestBody.Content)
 	req, err := http.NewRequest(method, reqURL, bytes.NewBuffer(jsonStr))
@@ -208,10 +195,7 @@ func (ctx *ApiContext) ISendRequestToWithBody(method, uri string, requestBody *g
 		return err
 	}
 
-	if ctx.Debug {
-		requestDump, _ := httputil.DumpRequestOut(req, true)
-		log.Printf("New Request:\n%q", requestDump)
-	}
+	ctx.logRequest(req)
 
 	ctx.lastRequest = req
 	resp, err := ctx.client.Do(req)
@@ -220,10 +204,7 @@ func (ctx *ApiContext) ISendRequestToWithBody(method, uri string, requestBody *g
 		return err
 	}
 
-	if ctx.Debug {
-		dump, _ := httputil.DumpResponse(resp, true)
-		log.Printf("Received response:\n%q", dump)
-	}
+	ctx.logResponse(resp)
 
 	body, err2 := ioutil.ReadAll(resp.Body)
 
@@ -251,18 +232,14 @@ func (ctx *ApiContext) TheResponseCodeShouldBe(code int) error {
 	return nil
 }
 
-// TheResponseShouldBeAValidJson checks if the response is a valid JSON.
+// TheResponseShouldBeAValidJSON checks if the response is a valid JSON.
 func (ctx *ApiContext) TheResponseShouldBeAValidJSON() error {
 	var data interface{}
-	if err := json.Unmarshal([]byte(ctx.lastResponse.Body), &data); err != nil {
-		return err
-	}
-
-	return nil
+	return json.Unmarshal([]byte(ctx.lastResponse.Body), &data)
 }
 
-// TheJsonPathShouldHaveValue Validates if the json object have the expected value at the specified path.
-func (ctx *ApiContext) TheJsonPathShouldHaveValue(path string, value interface{}) error {
+// TheJSONPathShouldHaveValue Validates if the json object have the expected value at the specified path.
+func (ctx *ApiContext) TheJSONPathShouldHaveValue(path string, value interface{}) error {
 	var jsonData map[string]interface{}
 
 	if err := json.Unmarshal([]byte(ctx.lastResponse.Body), &jsonData); err != nil {
@@ -282,8 +259,8 @@ func (ctx *ApiContext) TheJsonPathShouldHaveValue(path string, value interface{}
 	return nil
 }
 
-// TheResponseShouldMatchJson Check that response matches the expected JSON.
-func (ctx *ApiContext) TheResponseShouldMatchJson(body *gherkin.DocString) error {
+// TheResponseShouldMatchJSON Check that response matches the expected JSON.
+func (ctx *ApiContext) TheResponseShouldMatchJSON(body *godog.DocString) error {
 	actual := strings.Trim(ctx.lastResponse.Body, "\n")
 
 	expected := body.Content
@@ -303,7 +280,7 @@ func (ctx *ApiContext) TheResponseShouldMatchJsonSchema(path string) error {
 
 	path = strings.Trim(path, "/")
 
-	schemaPath := fmt.Sprintf("%s/%s", ctx.JSONSchemasPath, path)
+	schemaPath := fmt.Sprintf("%s/%s", ctx.jSONSchemasPath, path)
 
 	if _, err := os.Stat(schemaPath); os.IsNotExist(err) {
 		return fmt.Errorf("JSON schema file does not exist: %s", schemaPath)
@@ -343,4 +320,24 @@ func (ctx *ApiContext) TheResponseHeaderShouldHaveValue(name string, expectedVal
 	}
 
 	return nil
+}
+
+// logRequest Helper function to log the request
+func (ctx *ApiContext) logRequest(request *http.Request) {
+	if !ctx.debug {
+		return
+	}
+
+	dump, _ := httputil.DumpRequestOut(request, true)
+	log.Println(string(dump))
+}
+
+// // logResponse Helper function to log the response
+func (ctx *ApiContext) logResponse(response *http.Response) {
+	if !ctx.debug {
+		return
+	}
+
+	dump, _ := httputil.DumpResponse(response, true)
+	log.Println(string(dump))
 }

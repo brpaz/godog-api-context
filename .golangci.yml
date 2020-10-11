@@ -1,0 +1,4 @@
+# Golang CI lint configuration file.
+# For example of available options, please see: https://golangci-lint.run/usage/configuration/
+linters:
+  enable: gosec

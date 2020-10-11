@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cucumber/gherkin-go"
 	"github.com/cucumber/godog"
 	"github.com/cucumber/messages-go/v10"
 	"github.com/stretchr/testify/assert"
@@ -34,28 +33,24 @@ func TestApiContext_ISetHeadersTo(t *testing.T) {
 
 	ctx := setupTestContext()
 
-	dt := &gherkin.DataTable{
-		Rows: []*gherkin.TableRow{
+	dt := &godog.Table{
+		Rows: []*messages.PickleStepArgument_PickleTable_PickleTableRow{
 			{
-				Cells: []*gherkin.TableCell{
+				Cells: []*messages.PickleStepArgument_PickleTable_PickleTableRow_PickleTableCell{
 					{
-						Node:  gherkin.Node{},
 						Value: "X-Header-1",
 					},
 					{
-						Node:  gherkin.Node{},
 						Value: "value 1",
 					},
 				},
 			},
 			{
-				Cells: []*gherkin.TableCell{
+				Cells: []*messages.PickleStepArgument_PickleTable_PickleTableRow_PickleTableCell{
 					{
-						Node:  gherkin.Node{},
 						Value: "X-Header-2",
 					},
 					{
-						Node:  gherkin.Node{},
 						Value: "value 2",
 					},
 				},
@@ -93,31 +88,24 @@ func TestApiContext_ISetQueryParamsTo(t *testing.T) {
 
 	ctx := setupTestContext()
 
-	dt := &gherkin.DataTable{
-		Node: gherkin.Node{},
-		Rows: []*gherkin.TableRow{
+	dt := &godog.Table{
+		Rows: []*messages.PickleStepArgument_PickleTable_PickleTableRow{
 			{
-				Node: gherkin.Node{},
-				Cells: []*gherkin.TableCell{
+				Cells: []*messages.PickleStepArgument_PickleTable_PickleTableRow_PickleTableCell{
 					{
-						Node:  gherkin.Node{},
 						Value: "q1",
 					},
 					{
-						Node:  gherkin.Node{},
 						Value: "v1",
 					},
 				},
 			},
 			{
-				Node: gherkin.Node{},
-				Cells: []*gherkin.TableCell{
+				Cells: []*messages.PickleStepArgument_PickleTable_PickleTableRow_PickleTableCell{
 					{
-						Node:  gherkin.Node{},
 						Value: "q2",
 					},
 					{
-						Node:  gherkin.Node{},
 						Value: "v2",
 					},
 				},
@@ -145,8 +133,7 @@ func TestApiContext_ISendRequestTo(t *testing.T) {
 	defer ts.Close()
 
 	ctx := setupTestContext().
-		WithBaseURL(ts.URL).
-		WithDebug(false)
+		WithBaseURL(ts.URL)
 
 	if err := ctx.ISetQueryParamWithValue("page", "1"); err != nil {
 		t.Fatal(err)
@@ -181,8 +168,7 @@ func TestApiContext_ISendRequestToWithBody(t *testing.T) {
 	defer ts.Close()
 
 	ctx := setupTestContext().
-		WithBaseURL(ts.URL).
-		WithDebug(true)
+		WithBaseURL(ts.URL)
 
 	if err := ctx.ISetQueryParamWithValue("page", "1"); err != nil {
 		t.Fatalf("cannot set query param on the request %v", err)
@@ -203,15 +189,14 @@ func TestApiContext_ISendRequestToWithBody(t *testing.T) {
 	assert.Equal(t, "POST", ctx.lastRequest.Method)
 }
 
-func TestVerifyResponseHeaderValue(t *testing.T) {
+func TestApiContext_TheResponseHeaderShouldHaveValue(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Some-Header", "hello")
 	}))
 
 	defer ts.Close()
 	ctx := setupTestContext().
-		WithBaseURL(ts.URL).
-		WithDebug(false)
+		WithBaseURL(ts.URL)
 
 	err := ctx.ISendRequestTo("GET", "/")
 
@@ -224,7 +209,7 @@ func TestApiContext_TheResponseShouldMatchJsonSchema(t *testing.T) {
 
 	p := make(map[string]interface{})
 	p["firstName"] = "Bruno"
-	p["lastName"] = "PAZ"
+	p["lastName"] = "Paz"
 	p["age"] = 30
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -236,8 +221,7 @@ func TestApiContext_TheResponseShouldMatchJsonSchema(t *testing.T) {
 
 	defer ts.Close()
 	ctx := setupTestContext().
-		WithBaseURL(ts.URL).
-		WithDebug(false)
+		WithBaseURL(ts.URL)
 
 	err := ctx.ISendRequestTo("GET", "/")
 
@@ -246,7 +230,7 @@ func TestApiContext_TheResponseShouldMatchJsonSchema(t *testing.T) {
 	assert.NotNil(t, ctx.TheResponseShouldMatchJsonSchema("coordinates.json"))
 }
 
-func TestJsonPathMatchers(t *testing.T) {
+func TestApiContext_TheJSONPathShouldHaveValue(t *testing.T) {
 
 	f, err := ioutil.ReadFile(filepath.Join("testdata", "test_json_path.json"))
 
@@ -277,6 +261,76 @@ func TestJsonPathMatchers(t *testing.T) {
 	assert.Nil(t, ctx.TheJSONPathShouldHaveValue("$.b", 2.0))
 	assert.Nil(t, ctx.TheJSONPathShouldHaveValue("$.c", 3.5))
 	assert.Nil(t, ctx.TheJSONPathShouldHaveValue("$.d", true))
+}
+
+func TestApiContext_TheJSONPathShouldMatch(t *testing.T) {
+
+	var respBody = map[string]string{
+		"name": "Bruno",
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewEncoder(w).Encode(respBody); err != nil {
+			w.WriteHeader(500)
+		}
+	}))
+
+	defer ts.Close()
+	ctx := setupTestContext().
+		WithBaseURL(ts.URL).
+		WithDebug(false)
+
+	err := ctx.ISendRequestTo("GET", "/")
+
+	assert.Nil(t, err)
+	assert.Nil(t, ctx.TheJSONPathShouldMatch("$.name", "^[a-zA-Z]+$"))
+	assert.Error(t, ctx.TheJSONPathShouldMatch("$.name", "^[0-9]+$"))
+}
+
+func TestApiContext_TheResponseBodyShouldContain(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("hello world!"))
+	}))
+
+	defer ts.Close()
+	ctx := setupTestContext().
+		WithBaseURL(ts.URL)
+
+	err := ctx.ISendRequestTo("GET", "/")
+
+	assert.Nil(t, err)
+	assert.Nil(t, ctx.TheResponseBodyShouldContain("hello"))
+	assert.Error(t, ctx.TheResponseBodyShouldContain("abc"))
+}
+
+func TestApiContext_TheResponseBodyShouldBePresent(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("{ \"hello\": \"value\" }"))
+	}))
+
+	defer ts.Close()
+	ctx := setupTestContext().
+		WithBaseURL(ts.URL)
+
+	err := ctx.ISendRequestTo("GET", "/")
+
+	assert.Nil(t, err)
+	assert.Nil(t, ctx.TheJSONPathShouldBePresent("$.hello"))
+}
+
+func TestApiContext_TheResponseBodyShouldMatch(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("hello world!"))
+	}))
+
+	defer ts.Close()
+	ctx := setupTestContext().
+		WithBaseURL(ts.URL)
+
+	err := ctx.ISendRequestTo("GET", "/")
+
+	assert.Nil(t, err)
+	assert.Nil(t, ctx.TheResponseBodyShouldMatch("^hello\\sworld!"))
 }
 
 func TestReset(t *testing.T) {

@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/PaesslerAG/jsonpath"
@@ -90,9 +92,10 @@ func (ctx *ApiContext) InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^The response should match json schema "([^"]*)"$`, ctx.TheResponseShouldMatchJsonSchema)
 	s.Step(`^The json path "([^"]*)" should have value "([^"]*)"$`, ctx.TheJSONPathShouldHaveValue)
 	s.Step(`^The json path "([^"]*)" should match "([^"]*)"$`, ctx.TheJSONPathShouldMatch)
+	s.Step(`^The json path "([^"]*)" should have count "([^"]*)"$`, ctx.TheJSONPathHaveCount)
 	s.Step(`^The json path "([^"]*)" should be present"$`, ctx.TheJSONPathShouldBePresent)
-	s.Step(`^The response body should contain:$`, ctx.TheResponseBodyShouldContain)
-	s.Step(`^The response body should match:$`, ctx.TheResponseBodyShouldMatch)
+	s.Step(`^The response body should contain "([^"]*) $`, ctx.TheResponseBodyShouldContain)
+	s.Step(`^The response body should match "([^"]*)$`, ctx.TheResponseBodyShouldMatch)
 }
 
 // reset Reset the internal state of the API context
@@ -240,7 +243,7 @@ func (ctx *ApiContext) TheResponseShouldBeAValidJSON() error {
 }
 
 // TheJSONPathShouldHaveValue Validates if the json object have the expected value at the specified path.
-func (ctx *ApiContext) TheJSONPathShouldHaveValue(pathExpr string, expectedValue interface{}) error {
+func (ctx *ApiContext) TheJSONPathShouldHaveValue(pathExpr string, expectedValue string) error {
 	var jsonData map[string]interface{}
 
 	if err := json.Unmarshal([]byte(ctx.lastResponse.Body), &jsonData); err != nil {
@@ -253,8 +256,40 @@ func (ctx *ApiContext) TheJSONPathShouldHaveValue(pathExpr string, expectedValue
 		return err
 	}
 
-	if actualValue != expectedValue {
-		return fmt.Errorf("expected json path to have value %v but it is %v", expectedValue, actualValue)
+	var expectedParsedValue interface{}
+	switch reflect.TypeOf(actualValue).Kind() {
+	case reflect.Bool:
+		expectedParsedValue, err = strconv.ParseBool(expectedValue)
+
+		if err != nil {
+			return err
+		}
+
+	case reflect.Float64:
+		expectedParsedValue, err = strconv.ParseFloat(expectedValue, 64)
+
+		if err != nil {
+			return err
+		}
+	case reflect.Int32:
+		expectedParsedValue, err = strconv.ParseInt(expectedValue, 10, 64)
+
+		if err != nil {
+			return err
+		}
+	case reflect.Int64:
+		expectedParsedValue, err = strconv.ParseInt(expectedValue, 10, 64)
+
+		if err != nil {
+			return err
+		}
+
+	default:
+		expectedParsedValue = expectedValue
+	}
+
+	if actualValue != expectedParsedValue {
+		return fmt.Errorf("expected json path to have value %v but it is %v", expectedParsedValue, actualValue)
 	}
 
 	return nil
@@ -303,6 +338,33 @@ func (ctx *ApiContext) TheJSONPathShouldBePresent(pathExpr string) error {
 
 	if value == nil {
 		return fmt.Errorf("the json path %s was not present in the response", pathExpr)
+	}
+
+	return nil
+}
+
+// TheJSONPathHaveCount Validates if the field at the specified json path have the expected length
+func (ctx *ApiContext) TheJSONPathHaveCount(pathExpr string, expectedCount int) error {
+	var jsonData map[string]interface{}
+
+	if err := json.Unmarshal([]byte(ctx.lastResponse.Body), &jsonData); err != nil {
+		return err
+	}
+
+	value, err := jsonpath.Get(pathExpr, jsonData)
+
+	if err != nil {
+		return err
+	}
+
+	s := reflect.ValueOf(value)
+
+	if s.Kind() != reflect.Slice {
+		return fmt.Errorf("the json path %s is not an array. Found %v", pathExpr, value)
+	}
+
+	if s.Len() != expectedCount {
+		return fmt.Errorf("the value %v doenst have count %d but %d", value, expectedCount, s.Len())
 	}
 
 	return nil

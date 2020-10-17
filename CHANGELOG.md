@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/brpaz/godog-api-context/compare/v1.3.0...v1.4.0) (2020-10-17)
+
+
+### Features
+
+* added some steps plus fix for godog api changes regarding data tables ([#2](https://github.com/brpaz/godog-api-context/issues/2)) ([044529a](https://github.com/brpaz/godog-api-context/commit/044529a5a9859e4b47d197d161d52f986324d41b))
+
 # [1.3.0](https://github.com/brpaz/godog-api-context/compare/v1.2.0...v1.3.0) (2020-09-02)
 
 

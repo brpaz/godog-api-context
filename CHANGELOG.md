@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/brpaz/godog-api-context/compare/v1.5.0...v1.5.1) (2020-10-17)
+
+
+### Bug Fixes
+
+* Fix unmarshall when json is an array at root level ([5bb46fd](https://github.com/brpaz/godog-api-context/commit/5bb46fda48261441607f276a081d6d79de4d207a))
+
 # [1.5.0](https://github.com/brpaz/godog-api-context/compare/v1.4.0...v1.5.0) (2020-10-17)
 
 

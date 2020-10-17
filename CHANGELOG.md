@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/brpaz/godog-api-context/compare/v1.4.0...v1.5.0) (2020-10-17)
+
+
+### Features
+
+* add count step and small fixes ([#3](https://github.com/brpaz/godog-api-context/issues/3)) ([58749f0](https://github.com/brpaz/godog-api-context/commit/58749f093fdc1ae2dcbd032221ba560c3f6e673e))
+
 # [1.4.0](https://github.com/brpaz/godog-api-context/compare/v1.3.0...v1.4.0) (2020-10-17)
 
 

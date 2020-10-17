@@ -1,4 +1,4 @@
-// Package apicontext defines common godog step definitions for testing REST APIs
+// Package apicontext defines common step definitions for testing REST APIs using Cucumber and Godog
 package apicontext
 
 import (
@@ -10,18 +10,18 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/PaesslerAG/jsonpath"
-	"github.com/cucumber/gherkin-go"
 	"github.com/cucumber/godog"
 	"github.com/xeipuuv/gojsonschema"
 )
 
-// DefaultSchemasPath The defaults path to json schema files for validating the responses
+// The defaults path to json schema files for validating the responses.
 const defaultSchemasPath = "schemas"
 
-// ApiContext The main struct
+// ApiContext main struct
 type ApiContext struct {
 	baseURL         string
 	jSONSchemasPath string
@@ -89,6 +89,10 @@ func (ctx *ApiContext) InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^The response header "([^"]*)" should have value ([^"]*)$`, ctx.TheResponseHeaderShouldHaveValue)
 	s.Step(`^The response should match json schema "([^"]*)"$`, ctx.TheResponseShouldMatchJsonSchema)
 	s.Step(`^The json path "([^"]*)" should have value "([^"]*)"$`, ctx.TheJSONPathShouldHaveValue)
+	s.Step(`^The json path "([^"]*)" should match "([^"]*)"$`, ctx.TheJSONPathShouldMatch)
+	s.Step(`^The json path "([^"]*)" should be present"$`, ctx.TheJSONPathShouldBePresent)
+	s.Step(`^The response body should contain:$`, ctx.TheResponseBodyShouldContain)
+	s.Step(`^The response body should match:$`, ctx.TheResponseBodyShouldMatch)
 }
 
 // reset Reset the internal state of the API context
@@ -101,9 +105,9 @@ func (ctx *ApiContext) reset(*godog.Scenario) {
 
 // ISetHeadersTo This step sets the request headers using a datatable as source.
 // It allows to define multiple headers at the same time.
-func (ctx *ApiContext) ISetHeadersTo(data *gherkin.DataTable) error {
-	for i := 0; i < len(data.Rows); i++ {
-		ctx.headers[data.Rows[i].Cells[0].Value] = data.Rows[i].Cells[1].Value
+func (ctx *ApiContext) ISetHeadersTo(dt *godog.Table) error {
+	for i := 0; i < len(dt.Rows); i++ {
+		ctx.headers[dt.Rows[i].Cells[0].Value] = dt.Rows[i].Cells[1].Value
 	}
 
 	return nil
@@ -122,9 +126,9 @@ func (ctx *ApiContext) ISetQueryParamWithValue(name string, value string) error 
 }
 
 // ISetQueryParamsTo Set query params from a Data Table
-func (ctx *ApiContext) ISetQueryParamsTo(data *gherkin.DataTable) error {
-	for i := 0; i < len(data.Rows); i++ {
-		ctx.queryParams[data.Rows[i].Cells[0].Value] = data.Rows[i].Cells[1].Value
+func (ctx *ApiContext) ISetQueryParamsTo(dt *godog.Table) error {
+	for i := 0; i < len(dt.Rows); i++ {
+		ctx.queryParams[dt.Rows[i].Cells[0].Value] = dt.Rows[i].Cells[1].Value
 	}
 
 	return nil
@@ -222,12 +226,9 @@ func (ctx *ApiContext) ISendRequestToWithBody(method, uri string, requestBody *g
 }
 
 // TheResponseCodeShouldBe Check if the http status code of the response matches the specified value.
-func (ctx *ApiContext) TheResponseCodeShouldBe(code int) error {
-	if code != ctx.lastResponse.StatusCode {
-		if ctx.lastResponse.StatusCode >= 400 {
-			return fmt.Errorf("expected Response code to be: %d, but actual is: %d, Response message: %s", code, ctx.lastResponse.StatusCode, ctx.lastResponse.Body)
-		}
-		return fmt.Errorf("expected Response code to be: %d, but actual is: %d", code, ctx.lastResponse.StatusCode)
+func (ctx *ApiContext) TheResponseCodeShouldBe(statusCode int) error {
+	if statusCode != ctx.lastResponse.StatusCode {
+		return fmt.Errorf("expected status code to be %d, but actual is %d.\n Response body: %s", statusCode, ctx.lastResponse.StatusCode, ctx.lastResponse.Body)
 	}
 	return nil
 }
@@ -239,21 +240,69 @@ func (ctx *ApiContext) TheResponseShouldBeAValidJSON() error {
 }
 
 // TheJSONPathShouldHaveValue Validates if the json object have the expected value at the specified path.
-func (ctx *ApiContext) TheJSONPathShouldHaveValue(path string, value interface{}) error {
+func (ctx *ApiContext) TheJSONPathShouldHaveValue(pathExpr string, expectedValue interface{}) error {
 	var jsonData map[string]interface{}
 
 	if err := json.Unmarshal([]byte(ctx.lastResponse.Body), &jsonData); err != nil {
 		return err
 	}
 
-	res, err := jsonpath.Get(path, jsonData)
+	actualValue, err := jsonpath.Get(pathExpr, jsonData)
 
 	if err != nil {
 		return err
 	}
 
-	if res != value {
-		return fmt.Errorf("expected json %v, does not match actual: %v", res, value)
+	if actualValue != expectedValue {
+		return fmt.Errorf("expected json path to have value %v but it is %v", expectedValue, actualValue)
+	}
+
+	return nil
+}
+
+// TheJSONPathShouldMatch Validates Checks if the the value from the specified json path matches the specified pattern.
+func (ctx *ApiContext) TheJSONPathShouldMatch(pathExpr string, pattern string) error {
+	var jsonData map[string]interface{}
+
+	if err := json.Unmarshal([]byte(ctx.lastResponse.Body), &jsonData); err != nil {
+		return err
+	}
+
+	value, err := jsonpath.Get(pathExpr, jsonData)
+
+	if err != nil {
+		return err
+	}
+
+	match, err := regexp.MatchString(pattern, value.(string))
+
+	if err != nil {
+		return err
+	}
+
+	if !match {
+		return fmt.Errorf("%s does not match: %s", value, pattern)
+	}
+
+	return nil
+}
+
+// TheJSONPathShouldBePresent checks if the specified json path exists in the response body
+func (ctx *ApiContext) TheJSONPathShouldBePresent(pathExpr string) error {
+	var jsonData interface{}
+
+	if err := json.Unmarshal([]byte(ctx.lastResponse.Body), &jsonData); err != nil {
+		return err
+	}
+
+	value, err := jsonpath.Get(pathExpr, jsonData)
+
+	if err != nil {
+		return err
+	}
+
+	if value == nil {
+		return fmt.Errorf("the json path %s was not present in the response", pathExpr)
 	}
 
 	return nil
@@ -275,6 +324,33 @@ func (ctx *ApiContext) TheResponseShouldMatchJSON(body *godog.DocString) error {
 	return nil
 }
 
+// TheResponseBodyShouldContain Checks if the response body contains the specified string
+func (ctx *ApiContext) TheResponseBodyShouldContain(s string) error {
+	bodyContent := strings.Trim(ctx.lastResponse.Body, "\n")
+
+	if !strings.Contains(bodyContent, s) {
+		return fmt.Errorf("%s does not contain %s", bodyContent, s)
+	}
+	return nil
+}
+
+// TheResponseBodyMatch Checks if the response body matches the specified pattern
+func (ctx *ApiContext) TheResponseBodyShouldMatch(pattern string) error {
+
+	bodyContents := ctx.lastResponse.Body
+	match, err := regexp.MatchString(pattern, bodyContents)
+
+	if err != nil {
+		return err
+	}
+
+	if !match {
+		return fmt.Errorf("%s does not match pattern: %s", bodyContents, pattern)
+	}
+
+	return nil
+}
+
 // TheResponseShouldMatchJsonSchema Checks if the response matches the specified JSON schema
 func (ctx *ApiContext) TheResponseShouldMatchJsonSchema(path string) error {
 
@@ -291,7 +367,7 @@ func (ctx *ApiContext) TheResponseShouldMatchJsonSchema(path string) error {
 		return fmt.Errorf("cannot open json schema file: %s", err)
 	}
 
-	schemaLoader := gojsonschema.NewStringLoader(string(schemaContents))
+	schemaLoader := gojsonschema.NewBytesLoader(schemaContents)
 	documentLoader := gojsonschema.NewStringLoader(ctx.lastResponse.Body)
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
 
@@ -305,7 +381,7 @@ func (ctx *ApiContext) TheResponseShouldMatchJsonSchema(path string) error {
 			schemaErrors = append(schemaErrors, error.String())
 		}
 
-		return fmt.Errorf("The document is not valid according to the specified schema %s\n %v", path, schemaErrors)
+		return fmt.Errorf("The response is not valid according to the specified schema %s\n %v", path, schemaErrors)
 	}
 
 	return nil

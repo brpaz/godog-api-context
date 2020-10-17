@@ -2,5 +2,6 @@
   "a": "a",
   "b": 2,
   "c": 3.50,
-  "d": true
+  "d": true,
+  "list": ["item1", "item2"]
 }

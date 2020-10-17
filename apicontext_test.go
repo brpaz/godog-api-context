@@ -258,9 +258,9 @@ func TestApiContext_TheJSONPathShouldHaveValue(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, ctx.lastResponse)
 	assert.Nil(t, ctx.TheJSONPathShouldHaveValue("$.a", "a"))
-	assert.Nil(t, ctx.TheJSONPathShouldHaveValue("$.b", 2.0))
-	assert.Nil(t, ctx.TheJSONPathShouldHaveValue("$.c", 3.5))
-	assert.Nil(t, ctx.TheJSONPathShouldHaveValue("$.d", true))
+	assert.Nil(t, ctx.TheJSONPathShouldHaveValue("$.b", "2"))
+	assert.Nil(t, ctx.TheJSONPathShouldHaveValue("$.c", "3.5"))
+	assert.Nil(t, ctx.TheJSONPathShouldHaveValue("$.d", "true"))
 }
 
 func TestApiContext_TheJSONPathShouldMatch(t *testing.T) {
@@ -285,6 +285,36 @@ func TestApiContext_TheJSONPathShouldMatch(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Nil(t, ctx.TheJSONPathShouldMatch("$.name", "^[a-zA-Z]+$"))
 	assert.Error(t, ctx.TheJSONPathShouldMatch("$.name", "^[0-9]+$"))
+}
+
+func TestApiContext_TheJSONPathHaveCount(t *testing.T) {
+
+	f, err := ioutil.ReadFile(filepath.Join("testdata", "test_json_path.json"))
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, err := w.Write(f)
+
+		if err != nil {
+			w.WriteHeader(500)
+		}
+	}))
+
+	defer ts.Close()
+	ctx := setupTestContext().
+		WithBaseURL(ts.URL).
+		WithDebug(false)
+
+	err = ctx.ISendRequestTo("GET", "/")
+
+	assert.Nil(t, err)
+	assert.NotNil(t, ctx.lastResponse)
+	assert.Nil(t, ctx.TheJSONPathHaveCount("$.list", 2))
 }
 
 func TestApiContext_TheResponseBodyShouldContain(t *testing.T) {

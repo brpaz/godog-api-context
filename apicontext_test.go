@@ -317,6 +317,36 @@ func TestApiContext_TheJSONPathHaveCount(t *testing.T) {
 	assert.Nil(t, ctx.TheJSONPathHaveCount("$.list", 2))
 }
 
+func TestApiContext_TheJSONPathHaveCountRoot(t *testing.T) {
+
+	f, err := ioutil.ReadFile(filepath.Join("testdata", "test_root_array.json"))
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, err := w.Write(f)
+
+		if err != nil {
+			w.WriteHeader(500)
+		}
+	}))
+
+	defer ts.Close()
+	ctx := setupTestContext().
+		WithBaseURL(ts.URL).
+		WithDebug(false)
+
+	err = ctx.ISendRequestTo("GET", "/")
+
+	assert.Nil(t, err)
+	assert.NotNil(t, ctx.lastResponse)
+	assert.Nil(t, ctx.TheJSONPathHaveCount("$", 2))
+}
+
 func TestApiContext_TheResponseBodyShouldContain(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("hello world!"))

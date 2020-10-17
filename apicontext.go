@@ -94,7 +94,7 @@ func (ctx *ApiContext) InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^The json path "([^"]*)" should match "([^"]*)"$`, ctx.TheJSONPathShouldMatch)
 	s.Step(`^The json path "([^"]*)" should have count "([^"]*)"$`, ctx.TheJSONPathHaveCount)
 	s.Step(`^The json path "([^"]*)" should be present"$`, ctx.TheJSONPathShouldBePresent)
-	s.Step(`^The response body should contain "([^"]*) $`, ctx.TheResponseBodyShouldContain)
+	s.Step(`^The response body should contain "([^"]*)"$`, ctx.TheResponseBodyShouldContain)
 	s.Step(`^The response body should match "([^"]*)$`, ctx.TheResponseBodyShouldMatch)
 }
 
@@ -244,7 +244,7 @@ func (ctx *ApiContext) TheResponseShouldBeAValidJSON() error {
 
 // TheJSONPathShouldHaveValue Validates if the json object have the expected value at the specified path.
 func (ctx *ApiContext) TheJSONPathShouldHaveValue(pathExpr string, expectedValue string) error {
-	var jsonData map[string]interface{}
+	var jsonData interface{}
 
 	if err := json.Unmarshal([]byte(ctx.lastResponse.Body), &jsonData); err != nil {
 		return err
@@ -297,7 +297,7 @@ func (ctx *ApiContext) TheJSONPathShouldHaveValue(pathExpr string, expectedValue
 
 // TheJSONPathShouldMatch Validates Checks if the the value from the specified json path matches the specified pattern.
 func (ctx *ApiContext) TheJSONPathShouldMatch(pathExpr string, pattern string) error {
-	var jsonData map[string]interface{}
+	var jsonData interface{}
 
 	if err := json.Unmarshal([]byte(ctx.lastResponse.Body), &jsonData); err != nil {
 		return err
@@ -345,10 +345,11 @@ func (ctx *ApiContext) TheJSONPathShouldBePresent(pathExpr string) error {
 
 // TheJSONPathHaveCount Validates if the field at the specified json path have the expected length
 func (ctx *ApiContext) TheJSONPathHaveCount(pathExpr string, expectedCount int) error {
-	var jsonData map[string]interface{}
+	var jsonData interface{}
 
 	if err := json.Unmarshal([]byte(ctx.lastResponse.Body), &jsonData); err != nil {
 		return err
+
 	}
 
 	value, err := jsonpath.Get(pathExpr, jsonData)

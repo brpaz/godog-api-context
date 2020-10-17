@@ -18,7 +18,6 @@ build: ## Build the app
 
 test: ## Run package unit tests
 	@go test -v -count=1 -short -coverprofile cover/cover.out -covermode=atomic  ./...
-	@go tool cover -html=cover/cover.out
 
 help: ## Displays help menu
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'

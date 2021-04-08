@@ -71,6 +71,8 @@ You can see a complete example together with Feature files in [examples folder](
 
 `^I set headers to:$`
 
+`^I send "([^"]*)" request to "([^"]*)" with form body::$`
+
 `^I send "([^"]*)" request to "([^"]*)"$`
 
 `^I send "([^"]*)" request to "([^"]*)" with body:$`
@@ -87,6 +89,29 @@ You can see a complete example together with Feature files in [examples folder](
 
 `^The json path "([^"]*)" should have value "([^"]*)"$`
 
+`^wait for  (\d+) seconds$`
+
+`^Store data in scope variable "([^"]*)" with value ([^"]*)`
+
+`^I store the value of response header "([^"]*)" as ([^"]*) in scenario scope$`
+
+`^I store the value of body path "([^"]*)" as "([^"]*)" in scenario scope$`
+
+`^The scenario variable "([^"]*)" should have value "([^"]*)"$`
+
+
+## Scope Values
+
+This can also store the values from http response body and header and then use in subsequent requests. 
+To use the value of scope variable, use this ``pattern: `##(keyname)` without parenthesis``
+
+Example:
+```
+I store the value of response header "X-AUTH-TOKEN" as token in scenario scope
+I set header "X-AUTH-TOKEN" with value "`##token`"
+```
+
+This can be used for Authentication headers.
 
 ## TODO
 

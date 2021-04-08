@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/cucumber/godog"
 	"github.com/cucumber/messages-go/v10"
@@ -153,6 +154,67 @@ func TestApiContext_ISendRequestTo(t *testing.T) {
 	assert.Nil(t, ctx.TheResponseShouldMatchJSON(&godog.DocString{
 		Content: "{\"result\": \"success\"}",
 	}))
+}
+
+func TestApiContext_ISendRequestToWithFormBody(t *testing.T) {
+	value := "world"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		err := r.ParseMultipartForm(32 << 20) // maxMemory 32MB
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		assert.Equal(t, r.PostFormValue("hello"), value)
+		w.Header().Set("Content-Type", "application/json")
+		p := make(map[string]string)
+		p["result"] = "success"
+		if err := json.NewEncoder(w).Encode(p); err != nil {
+			w.WriteHeader(500)
+		}
+	}))
+
+	defer ts.Close()
+
+	ctx := setupTestContext().
+		WithBaseURL(ts.URL)
+
+	dt := &godog.Table{
+		Rows: []*messages.PickleStepArgument_PickleTable_PickleTableRow{
+			{
+				Cells: []*messages.PickleStepArgument_PickleTable_PickleTableRow_PickleTableCell{
+					{
+						Value: "hello",
+					},
+					{
+						Value: value,
+					},
+					{
+						Value: "text",
+					},
+				},
+			},
+			{
+				Cells: []*messages.PickleStepArgument_PickleTable_PickleTableRow_PickleTableCell{
+					{
+						Value: "simplefile",
+					},
+					{
+						Value: "./README.md",
+					},
+					{
+						Value: "file",
+					},
+				},
+			},
+		},
+	}
+
+	err := ctx.ISendRequestToWithFormBody("POST", "/", dt)
+
+	assert.Nil(t, err)
+	assert.NotNil(t, ctx.lastResponse)
+	assert.Equal(t, 200, ctx.lastResponse.StatusCode)
+	assert.Equal(t, "POST", ctx.lastRequest.Method)
 }
 
 func TestApiContext_ISendRequestToWithBody(t *testing.T) {
@@ -408,4 +470,74 @@ func TestReset(t *testing.T) {
 
 	assert.Empty(t, ctx.headers)
 	assert.Empty(t, ctx.queryParams)
+}
+
+func TestApiContext_WaitForSomeTime(t *testing.T) {
+	ctx := setupTestContext()
+	currentTime := time.Now()
+	timeToWait := float64(2)
+	err := ctx.WaitForSomeTime(2)
+	assert.Nil(t, err)
+	assert.GreaterOrEqual(t, time.Since(currentTime).Seconds(), timeToWait)
+}
+
+func TestApiContext_StoreScopeData(t *testing.T) {
+	ctx := setupTestContext()
+	err := ctx.StoreScopeData("hello", "world")
+	assert.Nil(t, err)
+	assert.Nil(t, ctx.TheScopeVariableShouldHaveValue("hello", "world"))
+}
+
+func TestApiContext_StoreResponseHeader(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Some-Header", "world")
+	}))
+
+	defer ts.Close()
+	ctx := setupTestContext().
+		WithBaseURL(ts.URL)
+
+	err := ctx.ISendRequestTo("GET", "/")
+
+	assert.Nil(t, err)
+	assert.Nil(t, ctx.StoreResponseHeader("X-Some-Header", "hello"))
+	assert.Nil(t, ctx.TheScopeVariableShouldHaveValue("hello", "world"))
+}
+
+func TestApiContext_StoreJsonPathValue(t *testing.T) {
+	f, err := ioutil.ReadFile(filepath.Join("testdata", "test_json_path.json"))
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, err := w.Write(f)
+
+		if err != nil {
+			w.WriteHeader(500)
+		}
+	}))
+
+	defer ts.Close()
+	ctx := setupTestContext().
+		WithBaseURL(ts.URL).
+		WithDebug(false)
+
+	err = ctx.ISendRequestTo("GET", "/")
+
+	assert.Nil(t, err)
+	assert.NotNil(t, ctx.lastResponse)
+	assert.Nil(t, ctx.StoreJsonPathValue("$.a", "hello"))
+	assert.Nil(t, ctx.TheScopeVariableShouldHaveValue("hello", "a"))
+}
+
+func TestApiContext_ReplaceScopeVariables(t *testing.T) {
+	ctx := setupTestContext()
+	err := ctx.StoreScopeData("hello", "world")
+	newData := ctx.ReplaceScopeVariables("hello `##hello` good")
+	assert.Nil(t, err)
+	assert.Equal(t, newData, "hello world good")
 }

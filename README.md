@@ -113,6 +113,7 @@ I set header "X-AUTH-TOKEN" with value "`##token`"
 
 This can be used for Authentication headers.
 
+Sample Feature files in [examples/scope folder](examples/scope).
 ## TODO
 
 * Add steps for setting Cookies

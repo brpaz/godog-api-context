@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/brpaz/godog-api-context/compare/v1.5.1...v1.6.0) (2021-04-11)
+
+
+### Features
+
+* Scope Variable | Multipart/form-data | Godog 0.11.0 ([#4](https://github.com/brpaz/godog-api-context/issues/4)) ([dd5b275](https://github.com/brpaz/godog-api-context/commit/dd5b275bb06d3cbcc8c7595022db16d7ff9e357a))
+
 ## [1.5.1](https://github.com/brpaz/godog-api-context/compare/v1.5.0...v1.5.1) (2020-10-17)
 
 

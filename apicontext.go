@@ -5,15 +5,19 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/PaesslerAG/jsonpath"
 	"github.com/cucumber/godog"
@@ -33,6 +37,7 @@ type ApiContext struct {
 	queryParams     map[string]string
 	lastResponse    *ApiResponse
 	lastRequest     *http.Request
+	scope           map[string]string
 }
 
 // ApiResponse Struct that wraps an API response.
@@ -52,6 +57,7 @@ func New(baseURL string) *ApiContext {
 		queryParams:     map[string]string{},
 		debug:           false,
 		jSONSchemasPath: defaultSchemasPath,
+		scope:           map[string]string{},
 	}
 }
 
@@ -81,6 +87,7 @@ func (ctx *ApiContext) InitializeScenario(s *godog.ScenarioContext) {
 
 	s.Step(`^I set header "([^"]*)" with value "([^"]*)"$`, ctx.ISetHeaderWithValue)
 	s.Step(`^I set headers to:$`, ctx.ISetHeadersTo)
+	s.Step(`^I send "([^"]*)" request to "([^"]*)" with form body::$`, ctx.ISendRequestToWithFormBody)
 	s.Step(`^I send "([^"]*)" request to "([^"]*)" with body:$`, ctx.ISendRequestToWithBody)
 	s.Step(`^I send "([^"]*)" request to "([^"]*)"$`, ctx.ISendRequestTo)
 	s.Step(`^I set query param "([^"]*)" with value "([^"]*)"$`, ctx.ISetQueryParamWithValue)
@@ -95,7 +102,12 @@ func (ctx *ApiContext) InitializeScenario(s *godog.ScenarioContext) {
 	s.Step(`^The json path "([^"]*)" should have count "([^"]*)"$`, ctx.TheJSONPathHaveCount)
 	s.Step(`^The json path "([^"]*)" should be present"$`, ctx.TheJSONPathShouldBePresent)
 	s.Step(`^The response body should contain "([^"]*)"$`, ctx.TheResponseBodyShouldContain)
-	s.Step(`^The response body should match "([^"]*)$`, ctx.TheResponseBodyShouldMatch)
+	s.Step(`^The response body should match "([^"]*)"$`, ctx.TheResponseBodyShouldMatch)
+	s.Step(`^I wait for (\d+) seconds$`, ctx.WaitForSomeTime)
+	s.Step(`^I store data in scope variable "([^"]*)" with value "([^"]*)"`, ctx.StoreScopeData)
+	s.Step(`^I store the value of response header "([^"]*)" as "([^"]*)" in scenario scope$`, ctx.StoreResponseHeader)
+	s.Step(`^I store the value of body path "([^"]*)" as "([^"]*)" in scenario scope$`, ctx.StoreJsonPathValue)
+	s.Step(`^The scope variable "([^"]*)" should have value "([^"]*)"$`, ctx.TheScopeVariableShouldHaveValue)
 }
 
 // reset Reset the internal state of the API context
@@ -110,7 +122,7 @@ func (ctx *ApiContext) reset(*godog.Scenario) {
 // It allows to define multiple headers at the same time.
 func (ctx *ApiContext) ISetHeadersTo(dt *godog.Table) error {
 	for i := 0; i < len(dt.Rows); i++ {
-		ctx.headers[dt.Rows[i].Cells[0].Value] = dt.Rows[i].Cells[1].Value
+		ctx.headers[dt.Rows[i].Cells[0].Value] = ctx.ReplaceScopeVariables(dt.Rows[i].Cells[1].Value)
 	}
 
 	return nil
@@ -124,14 +136,14 @@ func (ctx *ApiContext) ISetHeaderWithValue(name string, value string) error {
 
 // ISetQueryParamWithValue Adds a new query param to the request
 func (ctx *ApiContext) ISetQueryParamWithValue(name string, value string) error {
-	ctx.queryParams[name] = value
+	ctx.queryParams[name] = ctx.ReplaceScopeVariables(value)
 	return nil
 }
 
 // ISetQueryParamsTo Set query params from a Data Table
 func (ctx *ApiContext) ISetQueryParamsTo(dt *godog.Table) error {
 	for i := 0; i < len(dt.Rows); i++ {
-		ctx.queryParams[dt.Rows[i].Cells[0].Value] = dt.Rows[i].Cells[1].Value
+		ctx.queryParams[dt.Rows[i].Cells[0].Value] = ctx.ReplaceScopeVariables(dt.Rows[i].Cells[1].Value)
 	}
 
 	return nil
@@ -186,13 +198,91 @@ func (ctx *ApiContext) ISendRequestTo(method, uri string) error {
 	return nil
 }
 
+// ISendRequestToWithFormBody Send a request with json body. Ex: a POST request.
+func (ctx *ApiContext) ISendRequestToWithFormBody(method, uri string, requestBodyTable *godog.Table) error {
+
+	reqURL := fmt.Sprintf("%s%s", ctx.baseURL, uri)
+
+	reqBody := &bytes.Buffer{}
+	w := multipart.NewWriter(reqBody)
+
+	for i := 0; i < len(requestBodyTable.Rows); i++ {
+		key := requestBodyTable.Rows[i].Cells[0].Value
+		value := ctx.ReplaceScopeVariables(requestBodyTable.Rows[i].Cells[1].Value)
+		typeOfField := requestBodyTable.Rows[i].Cells[2].Value
+
+		var fw io.Writer
+		var err error
+
+		if typeOfField == "text" {
+			if err = w.WriteField(key, value); err != nil {
+				return err
+			}
+		} else if typeOfField == "file" {
+			file, err := os.Open(value)
+			if err != nil {
+				panic(err)
+			}
+			_, fileName := filepath.Split(value)
+			fw, err = w.CreateFormFile(key, fileName)
+			if err != nil {
+				return err
+			}
+			_, err = io.Copy(fw, file)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	contentType := w.FormDataContentType()
+	err := w.Close()
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(method, reqURL, bytes.NewReader(reqBody.Bytes()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", contentType)
+	for name, value := range ctx.headers {
+		req.Header.Set(name, value)
+	}
+
+	ctx.logRequest(req)
+
+	ctx.lastRequest = req
+	resp, err := ctx.client.Do(req)
+
+	if err != nil {
+		return err
+	}
+
+	ctx.logResponse(resp)
+
+	body, err2 := ioutil.ReadAll(resp.Body)
+
+	if err2 != nil {
+		return err2
+	}
+
+	ctx.lastResponse = &ApiResponse{
+		StatusCode:  resp.StatusCode,
+		ResponseObj: resp,
+		Body:        string(body),
+	}
+
+	return nil
+}
+
 // ISendRequestToWithBody Send a request with json body. Ex: a POST request.
 func (ctx *ApiContext) ISendRequestToWithBody(method, uri string, requestBody *godog.DocString) error {
 
 	reqURL := fmt.Sprintf("%s%s", ctx.baseURL, uri)
-
-	var jsonStr = []byte(requestBody.Content)
-	req, err := http.NewRequest(method, reqURL, bytes.NewBuffer(jsonStr))
+	jsonBody := ctx.ReplaceScopeVariables(requestBody.Content)
+	//todo
+	var jsonBodyBytes = []byte(jsonBody)
+	req, err := http.NewRequest(method, reqURL, bytes.NewBuffer(jsonBodyBytes))
 
 	for name, value := range ctx.headers {
 		req.Header.Set(name, value)
@@ -245,7 +335,7 @@ func (ctx *ApiContext) TheResponseShouldBeAValidJSON() error {
 // TheJSONPathShouldHaveValue Validates if the json object have the expected value at the specified path.
 func (ctx *ApiContext) TheJSONPathShouldHaveValue(pathExpr string, expectedValue string) error {
 	var jsonData interface{}
-
+	expectedValue = ctx.ReplaceScopeVariables(expectedValue)
 	if err := json.Unmarshal([]byte(ctx.lastResponse.Body), &jsonData); err != nil {
 		return err
 	}
@@ -391,7 +481,7 @@ func (ctx *ApiContext) TheResponseShouldMatchJSON(body *godog.DocString) error {
 func (ctx *ApiContext) TheResponseBodyShouldContain(s string) error {
 	bodyContent := strings.Trim(ctx.lastResponse.Body, "\n")
 
-	if !strings.Contains(bodyContent, s) {
+	if !strings.Contains(bodyContent, ctx.ReplaceScopeVariables(s)) {
 		return fmt.Errorf("%s does not contain %s", bodyContent, s)
 	}
 	return nil
@@ -454,7 +544,7 @@ func (ctx *ApiContext) TheResponseShouldMatchJsonSchema(path string) error {
 func (ctx *ApiContext) TheResponseHeaderShouldHaveValue(name string, expectedValue string) error {
 	actualValue := ctx.lastResponse.ResponseObj.Header.Get(name)
 
-	if actualValue != expectedValue {
+	if actualValue != ctx.ReplaceScopeVariables(expectedValue) {
 		return fmt.Errorf("expected header to have value %s. actual : %s", expectedValue, actualValue)
 	}
 
@@ -479,4 +569,61 @@ func (ctx *ApiContext) logResponse(response *http.Response) {
 
 	dump, _ := httputil.DumpResponse(response, true)
 	log.Println(string(dump))
+}
+
+// WaitForSomeTime halt for some time.
+func (ctx *ApiContext) WaitForSomeTime(timeToWait int) error {
+	duration := time.Duration(timeToWait) * time.Second
+	time.Sleep(duration)
+	return nil
+}
+
+// StoreScopeData Store data in scope map.
+func (ctx *ApiContext) StoreScopeData(scopeKeyName string, value string) error {
+	ctx.scope[scopeKeyName] = value
+	return nil
+}
+
+// StoreResponseHeader Store header value to scope map.
+func (ctx *ApiContext) StoreResponseHeader(name string, scopeKeyName string) error {
+	actualValue := ctx.lastResponse.ResponseObj.Header.Get(name)
+	ctx.scope[scopeKeyName] = actualValue
+	return nil
+}
+
+// StoreJsonPathValue Store value from json body path to scope map.
+func (ctx *ApiContext) StoreJsonPathValue(pathExpr string, scopeKeyName string) error {
+	var jsonData interface{}
+
+	if err := json.Unmarshal([]byte(ctx.lastResponse.Body), &jsonData); err != nil {
+		return err
+	}
+
+	actualValue, err := jsonpath.Get(pathExpr, jsonData)
+
+	if err != nil {
+		return err
+	}
+	ctx.scope[scopeKeyName] = actualValue.(string)
+	return nil
+}
+
+// TheScopeVariableShouldHaveValue Verify the value of a scope variable
+func (ctx *ApiContext) TheScopeVariableShouldHaveValue(scopeKeyName string, expectedValue string) error {
+	if ctx.scope[scopeKeyName] != expectedValue {
+		return fmt.Errorf("expected scope variable to have value %s. actual : %s", expectedValue, ctx.scope[scopeKeyName])
+	}
+
+	return nil
+}
+
+func (ctx *ApiContext) ReplaceScopeVariables(data string) string {
+	re := regexp.MustCompile("`##(.*?)`")
+	matches := re.FindStringSubmatch(data)
+	if len(matches) < 1 || len(matches[1]) < 1 {
+		return data
+	}
+	dataToReplace := matches[0]
+	scopeKey := matches[1]
+	return strings.Replace(data, dataToReplace, ctx.scope[scopeKey], 1)
 }

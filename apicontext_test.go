@@ -2,6 +2,7 @@ package apicontext
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -21,8 +22,8 @@ func setupTestContext() *ApiContext {
 
 	return ctx
 }
-func TestApiContext_New(t *testing.T) {
 
+func TestApiContext_New(t *testing.T) {
 	ctx := setupTestContext()
 
 	assert.Equal(t, "https://example.com", ctx.baseURL)
@@ -31,7 +32,6 @@ func TestApiContext_New(t *testing.T) {
 }
 
 func TestApiContext_ISetHeadersTo(t *testing.T) {
-
 	ctx := setupTestContext()
 
 	dt := &godog.Table{
@@ -76,7 +76,6 @@ func TestApiContext_ISetHeaderWithValue(t *testing.T) {
 }
 
 func TestApiContext_ISetQueryParamWithValue(t *testing.T) {
-
 	ctx := setupTestContext()
 	err := ctx.ISetQueryParamWithValue("page", "1")
 
@@ -86,7 +85,6 @@ func TestApiContext_ISetQueryParamWithValue(t *testing.T) {
 }
 
 func TestApiContext_ISetQueryParamsTo(t *testing.T) {
-
 	ctx := setupTestContext()
 
 	dt := &godog.Table{
@@ -268,7 +266,6 @@ func TestApiContext_TheResponseHeaderShouldHaveValue(t *testing.T) {
 }
 
 func TestApiContext_TheResponseShouldMatchJsonSchema(t *testing.T) {
-
 	p := make(map[string]interface{})
 	p["firstName"] = "Bruno"
 	p["lastName"] = "Paz"
@@ -293,9 +290,7 @@ func TestApiContext_TheResponseShouldMatchJsonSchema(t *testing.T) {
 }
 
 func TestApiContext_TheJSONPathShouldHaveValue(t *testing.T) {
-
 	f, err := ioutil.ReadFile(filepath.Join("testdata", "test_json_path.json"))
-
 	if err != nil {
 		t.Error(err)
 	}
@@ -304,7 +299,6 @@ func TestApiContext_TheJSONPathShouldHaveValue(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 
 		_, err := w.Write(f)
-
 		if err != nil {
 			w.WriteHeader(500)
 		}
@@ -326,8 +320,7 @@ func TestApiContext_TheJSONPathShouldHaveValue(t *testing.T) {
 }
 
 func TestApiContext_TheJSONPathShouldMatch(t *testing.T) {
-
-	var respBody = map[string]string{
+	respBody := map[string]string{
 		"name": "Bruno",
 	}
 
@@ -350,9 +343,7 @@ func TestApiContext_TheJSONPathShouldMatch(t *testing.T) {
 }
 
 func TestApiContext_TheJSONPathHaveCount(t *testing.T) {
-
 	f, err := ioutil.ReadFile(filepath.Join("testdata", "test_json_path.json"))
-
 	if err != nil {
 		t.Error(err)
 	}
@@ -361,7 +352,6 @@ func TestApiContext_TheJSONPathHaveCount(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 
 		_, err := w.Write(f)
-
 		if err != nil {
 			w.WriteHeader(500)
 		}
@@ -380,9 +370,7 @@ func TestApiContext_TheJSONPathHaveCount(t *testing.T) {
 }
 
 func TestApiContext_TheJSONPathHaveCountRoot(t *testing.T) {
-
 	f, err := ioutil.ReadFile(filepath.Join("testdata", "test_root_array.json"))
-
 	if err != nil {
 		t.Error(err)
 	}
@@ -391,7 +379,6 @@ func TestApiContext_TheJSONPathHaveCountRoot(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 
 		_, err := w.Write(f)
-
 		if err != nil {
 			w.WriteHeader(500)
 		}
@@ -455,6 +442,38 @@ func TestApiContext_TheResponseBodyShouldMatch(t *testing.T) {
 	assert.Nil(t, ctx.TheResponseBodyShouldMatch("^hello\\sworld!"))
 }
 
+func TestApiContext_TheResponseShouldMatchJSON(t *testing.T) {
+	actualContent, _ := json.Marshal(map[string]interface{}{
+		"Length":  6,
+		"Content": "godog",
+	})
+
+	expectedContent, _ := json.Marshal(map[string]interface{}{
+		"Length":  5,
+		"Content": "godog",
+	})
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(actualContent)
+	}))
+
+	defer ts.Close()
+	ctx := setupTestContext().
+		WithBaseURL(ts.URL)
+
+	assert.Nil(t, ctx.ISendRequestTo("GET", "/"))
+
+	expected := &godog.DocString{
+		Content: string(expectedContent),
+	}
+
+	assert.EqualError(
+		t,
+		ctx.TheResponseShouldMatchJSON(expected),
+		fmt.Sprintf("expected json %s, does not match actual: %s", expected.Content, string(actualContent)),
+	)
+}
+
 func TestReset(t *testing.T) {
 	ctx := setupTestContext()
 
@@ -506,7 +525,6 @@ func TestApiContext_StoreResponseHeader(t *testing.T) {
 
 func TestApiContext_StoreJsonPathValue(t *testing.T) {
 	f, err := ioutil.ReadFile(filepath.Join("testdata", "test_json_path.json"))
-
 	if err != nil {
 		t.Error(err)
 	}
@@ -515,7 +533,6 @@ func TestApiContext_StoreJsonPathValue(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 
 		_, err := w.Write(f)
-
 		if err != nil {
 			w.WriteHeader(500)
 		}

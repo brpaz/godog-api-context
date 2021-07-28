@@ -15,7 +15,7 @@ func isEqualJson(s1, s2 string) (bool, error) {
 		return false, err
 	}
 
-	err = json.Unmarshal([]byte(s1), &o2)
+	err = json.Unmarshal([]byte(s2), &o2)
 
 	if err != nil {
 		return false, err

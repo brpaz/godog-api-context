@@ -151,8 +151,7 @@ func (ctx *ApiContext) ISetQueryParamsTo(dt *godog.Table) error {
 
 // ISendRequestTo Sends a request to the specified endpoint using the specified method.
 func (ctx *ApiContext) ISendRequestTo(method, uri string) error {
-	reqURL := fmt.Sprintf("%s%s", ctx.baseURL, uri)
-
+	reqURL := ctx.buildRequestURL(uri)
 	req, err := http.NewRequest(method, reqURL, nil)
 
 	if err != nil {
@@ -200,9 +199,7 @@ func (ctx *ApiContext) ISendRequestTo(method, uri string) error {
 
 // ISendRequestToWithFormBody Send a request with json body. Ex: a POST request.
 func (ctx *ApiContext) ISendRequestToWithFormBody(method, uri string, requestBodyTable *godog.Table) error {
-
-	reqURL := fmt.Sprintf("%s%s", ctx.baseURL, uri)
-
+	reqURL := ctx.buildRequestURL(uri)
 	reqBody := &bytes.Buffer{}
 	w := multipart.NewWriter(reqBody)
 
@@ -277,8 +274,7 @@ func (ctx *ApiContext) ISendRequestToWithFormBody(method, uri string, requestBod
 
 // ISendRequestToWithBody Send a request with json body. Ex: a POST request.
 func (ctx *ApiContext) ISendRequestToWithBody(method, uri string, requestBody *godog.DocString) error {
-
-	reqURL := fmt.Sprintf("%s%s", ctx.baseURL, uri)
+	reqURL := ctx.buildRequestURL(uri)
 	jsonBody := ctx.ReplaceScopeVariables(requestBody.Content)
 	//todo
 	var jsonBodyBytes = []byte(jsonBody)
@@ -569,6 +565,12 @@ func (ctx *ApiContext) logResponse(response *http.Response) {
 
 	dump, _ := httputil.DumpResponse(response, true)
 	log.Println(string(dump))
+}
+
+// buildRequestURL concatenates the given URI and the base URL after replacing scope variables.
+func (ctx *ApiContext) buildRequestURL(uri string) string {
+	uri = ctx.ReplaceScopeVariables(uri)
+	return ctx.baseURL + uri
 }
 
 // WaitForSomeTime halt for some time.

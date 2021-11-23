@@ -142,9 +142,14 @@ func TestApiContext_ISendRequestTo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := ctx.ISendRequestTo("GET", "/")
+	if err := ctx.StoreScopeData("id", "123"); err != nil {
+		t.Fatal(err)
+	}
+
+	err := ctx.ISendRequestTo("GET", "/resource/`##id`")
 
 	assert.Nil(t, err)
+	assert.Equal(t, "/resource/123", ctx.lastRequest.URL.Path)
 	assert.NotNil(t, ctx.lastResponse)
 	assert.Equal(t, 200, ctx.lastResponse.StatusCode)
 	assert.NotNil(t, ctx.TheResponseCodeShouldBe(400))
@@ -207,12 +212,17 @@ func TestApiContext_ISendRequestToWithFormBody(t *testing.T) {
 		},
 	}
 
-	err := ctx.ISendRequestToWithFormBody("POST", "/", dt)
+	if err := ctx.StoreScopeData("id", "123"); err != nil {
+		t.Fatal(err)
+	}
+
+	err := ctx.ISendRequestToWithFormBody("PUT", "/resource/`##id`", dt)
 
 	assert.Nil(t, err)
+	assert.Equal(t, "/resource/123", ctx.lastRequest.URL.Path)
 	assert.NotNil(t, ctx.lastResponse)
 	assert.Equal(t, 200, ctx.lastResponse.StatusCode)
-	assert.Equal(t, "POST", ctx.lastRequest.Method)
+	assert.Equal(t, "PUT", ctx.lastRequest.Method)
 }
 
 func TestApiContext_ISendRequestToWithBody(t *testing.T) {
@@ -238,15 +248,20 @@ func TestApiContext_ISendRequestToWithBody(t *testing.T) {
 		t.Fatalf("cannot set header on the request %v", err)
 	}
 
+	if err := ctx.StoreScopeData("id", "123"); err != nil {
+		t.Fatal(err)
+	}
+
 	reqBody := "{ \"name\": \"Bruno\"}"
-	err := ctx.ISendRequestToWithBody("POST", "/", &godog.DocString{
+	err := ctx.ISendRequestToWithBody("PUT", "/resource/`##id`", &godog.DocString{
 		Content: reqBody,
 	})
 
 	assert.Nil(t, err)
+	assert.Equal(t, "/resource/123", ctx.lastRequest.URL.Path)
 	assert.NotNil(t, ctx.lastResponse)
 	assert.Equal(t, 200, ctx.lastResponse.StatusCode)
-	assert.Equal(t, "POST", ctx.lastRequest.Method)
+	assert.Equal(t, "PUT", ctx.lastRequest.Method)
 }
 
 func TestApiContext_TheResponseHeaderShouldHaveValue(t *testing.T) {

@@ -86,6 +86,7 @@ func (ctx *ApiContext) InitializeScenario(s *godog.ScenarioContext) {
 	s.BeforeScenario(ctx.reset)
 
 	s.Step(`^I set header "([^"]*)" with value "([^"]*)"$`, ctx.ISetHeaderWithValue)
+	s.Step(`^I set header "([^"]*)" with value from scope "([^"]*)"`, ctx.ISetHeaderWithValueFromScope)
 	s.Step(`^I set headers to:$`, ctx.ISetHeadersTo)
 	s.Step(`^I send "([^"]*)" request to "([^"]*)" with form body::$`, ctx.ISendRequestToWithFormBody)
 	s.Step(`^I send "([^"]*)" request to "([^"]*)" with body:$`, ctx.ISendRequestToWithBody)
@@ -131,6 +132,12 @@ func (ctx *ApiContext) ISetHeadersTo(dt *godog.Table) error {
 // ISetHeaderWithValue Step that add a new header to the current request.
 func (ctx *ApiContext) ISetHeaderWithValue(name string, value string) error {
 	ctx.headers[name] = value
+	return nil
+}
+
+// ISetHeaderWithValueFromScope Step that add a new header to the current request from scope.
+func (ctx *ApiContext) ISetHeaderWithValueFromScope(headerName, scopeName string) error {
+	ctx.headers[headerName] = ctx.scope[scopeName]
 	return nil
 }
 

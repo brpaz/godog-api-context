@@ -21,3 +21,6 @@ build
 coverage.txt
 dist
 cover
+
+# Ignore editor dependencies
+.vscode
